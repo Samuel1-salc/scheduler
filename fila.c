@@ -1,132 +1,115 @@
 #include "fila.h"
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdbool.h>
 
-CircularList* CircularList_creat()
+FIFO *FIFO_creat(void)
 {
-    CircularList* list = (CircularList*)malloc(sizeof(CircularList));
-    list->begin = NULL;
-    list->size = 0;
+    FIFO *list = malloc(sizeof(*list));
+    if (list != NULL) {
+        list->begin = NULL;
+        list->size = 0;
+    }
     return list;
 }
 
-Node* creatNode(PCB *processo){
-    Node* node = (Node*)malloc(sizeof(Node));
-    node->processo = processo;
-    node->next = NULL;
-    return node;
-
-}
-
-void CircularList_Insert(CircularList* list, PCB  *processo)
+bool FIFO_Insert(FIFO *list, DiskRequest *requisicao)
 {
-    Node* node = creatNode(processo);
-    
-
-    if (list->begin == NULL)
-    {
-        list->begin = node;
-        node->next = list->begin;
+    if (list == NULL || requisicao == NULL) return false;
+    Node *last = list->begin;
+    while (last != NULL) {
+        if (last->requisicao == requisicao) return false;
+        if (last->next == NULL) break;
+        last = last->next;
     }
-    else
-    {
-        Node* temp = list->begin;
-        while (temp->next != list->begin)
-        {
-            temp = temp->next;
-        }
-        temp->next = node;
-        node->next = list->begin;
+    Node *node = malloc(sizeof(*node));
+    if (node == NULL) return false;
+    node->requisicao = requisicao;
+    node->next = NULL;
+    if (last == NULL) {
+        list->begin = node;
+    } else {
+        last->next = node;
     }
     list->size++;
+    return true;
 }
 
-void CircularList_Print(CircularList *list)
+DiskRequest *FIFO_Remove(FIFO *list, DiskRequest *requisicao)
 {
-    if (list == NULL || list->begin == NULL)
-    {
-        printf("Lista vazia.\n");
-        return;
+    if (FIFO_Empty(list) || requisicao == NULL) return NULL;
+    Node *prev = NULL;
+    Node *node = list->begin;
+    while (node != NULL) {
+        if (node->requisicao == requisicao) {
+            if (prev == NULL) list->begin = node->next;
+            else prev->next = node->next;
+            free(node);
+            list->size--;
+            return requisicao;
+        }
+        prev = node;
+        node = node->next;
     }
-
-    Node *temp = list->begin;
-
-    do
-    {
-        printf(
-            "PID: %d | Prioridade: %d | Tempo restante: %d\n",
-            temp->processo->pid,
-            temp->processo->prioridade,
-            temp->processo->tempo_restante
-        );
-
-        temp = temp->next;
-
-    } while (temp != list->begin);
+    return NULL;
 }
 
-bool CircularList_Empty(CircularList* list){
+DiskRequest *FIFO_PopFront(FIFO *list)
+{
+    return FIFO_Empty(list) ? NULL :
+        FIFO_Remove(list, list->begin->requisicao);
+}
+
+bool FIFO_Empty(const FIFO *list)
+{
     return list == NULL || list->begin == NULL;
 }
 
-void CircularList_Remove(CircularList *list, PCB *processo)
+size_t FIFO_Size(const FIFO *list)
 {
-    if (list == NULL || list->begin == NULL)
-    {
+    return list == NULL ? 0 : list->size;
+}
+
+void FIFO_Print(const FIFO *list)
+{
+    if (FIFO_Empty(list)) {
+        puts("Lista vazia.");
         return;
     }
+    const Node *node = list->begin;
+    while (node != NULL) {
+        const DiskRequest *pedido = node->requisicao;
+        printf("ID: %d | Cilindro: %d | Chegada: %zu\n",
+               pedido->id, pedido->cilindro, pedido->sequencia_chegada);
+        node = node->next;
+    }
+}
 
-    Node *temp = list->begin;
-    Node *prev = NULL;
+void FIFO_Destroy(FIFO *list)
+{
+    if (list == NULL) return;
+    Node *node = list->begin;
+    while (node != NULL) {
+        Node *next = node->next;
+        DiskRequest_destroy(node->requisicao);
+        free(node);
+        node = next;
+    }
+    free(list);
+}
 
-    do
-    {
-        if (temp->processo == processo)
-        {
-            /*
-             * Caso 1:
-             * A lista possui apenas um elemento.
-             */
-            if (temp->next == temp)
-            {
-                list->begin = NULL;
-            }
-
-            /*
-             * Caso 2:
-             * O elemento a ser removido é o primeiro.
-             */
-            else if (temp == list->begin)
-            {
-                Node *aux = list->begin;
-
-                while (aux->next != list->begin)
-                {
-                    aux = aux->next;
-                }
-
-                aux->next = list->begin->next;
-                list->begin = list->begin->next;
-            }
-
-            /*
-             * Caso 3:
-             * O elemento está no meio ou no final.
-             */
-            else
-            {
-                prev->next = temp->next;
-            }
-
-            free(temp);
-            list->size--;
-
-            return;
-        }
-
-        prev = temp;
-        temp = temp->next;
-
-    } while (temp != list->begin);
+size_t FIFO_MovePrefix(FIFO *origem, FIFO *destino,
+                              size_t limite)
+{
+    if (origem == NULL || destino == NULL || origem == destino || limite == 0 ||
+        FIFO_Empty(origem) || !FIFO_Empty(destino)) return 0;
+    size_t quantidade = origem->size < limite ? origem->size : limite;
+    Node *primeiro = origem->begin;
+    Node *ultimo = primeiro;
+    for (size_t i = 1; i < quantidade; i++) ultimo = ultimo->next;
+    origem->begin = ultimo->next;
+    ultimo->next = NULL;
+    origem->size -= quantidade;
+    destino->begin = primeiro;
+    destino->size = quantidade;
+    return quantidade;
 }

@@ -1,83 +1,41 @@
 #ifndef LINKED_CIRC_LIST_H
 #define LINKED_CIRC_LIST_H
-
 #include <stdbool.h>
-#include "pcb.h"
+#include <stddef.h>
+#include "disk_request.h"
 
-
-typedef struct Node
-{
-    PCB  *processo;
-    struct Node* next;
+typedef struct Node {
+    DiskRequest *requisicao;
+    struct Node *next;
 } Node;
 
-typedef struct CircularList
-{
-    Node* begin;
-    int size;
-} CircularList;
+/* Lista simplesmente encadeada NÃO circular: o último next é NULL.
+ * O nome FIFO foi mantido por compatibilidade com a API existente. */
+typedef struct FIFO {
+    Node *begin;
+    size_t size;
+} FIFO;
 
-
+FIFO *FIFO_creat(void);
+/* Assume propriedade somente no sucesso. Pedido não pode pertencer a outra fila.
+ * Rejeita NULL e o mesmo ponteiro já inserido nesta fila. */
+bool FIFO_Insert(FIFO *list, DiskRequest *requisicao);
+/* Retiram por identidade e transferem propriedade ao chamador; NULL se ausente. */
+DiskRequest *FIFO_Remove(FIFO *list, DiskRequest *requisicao);
+DiskRequest *FIFO_PopFront(FIFO *list);
+bool FIFO_Empty(const FIFO *list);
+size_t FIFO_Size(const FIFO *list);
+void FIFO_Print(const FIFO *list);
+/* Libera nós, pedidos restantes e a própria fila. Aceita NULL. */
+void FIFO_Destroy(FIFO *list);
 /**
- * Creates a new CircularList.
- *
- * @return A pointer to the newly created CircularList.
+ * @brief Transfere um prefixo FIFO para uma fila vazia, sem alocar memória.
+ * @param origem Fila proprietária dos pedidos a transferir.
+ * @param destino Fila vazia que receberá os nós e a propriedade dos pedidos.
+ * @param limite Quantidade máxima positiva de pedidos.
+ * @return Número transferido; zero para argumentos inválidos ou origem vazia.
+ * @note Em caso de recusa, nenhuma fila é alterada.
  */
-CircularList* CircularList_creat();
-
-/**
- * Creates a new Node with the specified size.
- *
- * @param size The size of the Node.
- * @return A pointer to the newly created Node.
- */
-Node* creatNode(PCB *processo);
-
-/**
- * Inserts a new element with the specified data into the CircularList.
- *
- * @param list The CircularList to insert the element into.
- * @param processo The processo of the element to be inserted.
- */
-void CircularList_Insert(CircularList* list, PCB *processo);
-
-/**
- * Prints the elements of the CircularList.
- *
- * @param list The CircularList to print.
- */
-void CircularList_Print(CircularList* list);
-
-/**
- * search for elements in list
- *
- * @param list The CircularList to verify if the list is empty.
- */
-bool CircularList_Empty(CircularList* list);
-
-/**
- * Removes the element with the specified data from the CircularList.
- *
- * @param list The CircularList to remove the element from.
- * @param processo The processo of the element to be removed.
- */
-void CircularList_Remove(CircularList* list, PCB *processo);
-
-/**
- * Performs a specific operation on the CircularList.
- *
- * @param list The CircularList to perform the operation on.
- * @param info Additional information for the operation.
- */
-void CircularEDMundo(CircularList* list, int info);
-
-/**
- * Predefines the CircularList with a specific size.
- *
- * @param list The CircularList to predefine.
- * @param size The size of the CircularList.
- */
-void CircularPredefine(CircularList* list, int size);
-
-
+size_t FIFO_MovePrefix(FIFO *origem, FIFO *destino,
+                              size_t limite);
 #endif
